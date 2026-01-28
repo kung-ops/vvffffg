@@ -1,0 +1,25 @@
+name: Windows VPS Workflow
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  run-on-vps:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Show system info
+        run: systeminfo
+
+      - name: Keep runner alive (long workflow)
+        run: |
+          echo Running long job...
+          timeout /t 999999
+
+      - name: Example workload
+        run: |
+          echo Workflow running on your Windows VPS!
