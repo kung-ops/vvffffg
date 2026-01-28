@@ -1,78 +1,47 @@
-name: Windows 10 Unlimited Runner
-
-on:
-  workflow_dispatch:  # Manual trigger
+name: Windows 10-like Workflow
+on: 
+  workflow_dispatch:
   push:
-    branches: [ main, master ]
-  schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
-    
-# Remove the 6-hour time limit
-# This will run until manually stopped or the workflow completes
+    branches: [main]
+
 jobs:
-  unlimited-windows-job:
-    runs-on: [self-hosted, windows-10, 100gb]
+  windows-build:
+    runs-on: windows-latest  # Windows Server 2022
     
-    # Set timeout to a very high value (2147483647 seconds = ~68 years)
-    timeout-minutes: 2147483647
+    timeout-minutes: 360  # 6 hours max (GitHub limit)
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup environment
+      run: |
+        # Display system info
+        systeminfo | findstr /C:"OS Name"
+        echo "Available disk space:"
+        Get-PSDrive C | Select-Object Used,Free
         
-      - name: Display system info
-        run: |
-          Write-Host "=== System Information ==="
-          systeminfo | findstr /C:"OS Name" /C:"Total Physical Memory" /C:"Available Physical Memory"
-          Write-Host "=== Disk Information ==="
-          Get-PSDrive C | Select-Object Name, @{n='Free(GB)';e={[math]::Round($_.Free/1GB,2)}}, @{n='Used(GB)';e={[math]::Round($_.Used/1GB,2)}}, @{n='Total(GB)';e={[math]::Round(($_.Free+$_.Used)/1GB,2)}}
-          Write-Host "=== Available Time ==="
-          Write-Host "Unlimited (self-hosted runner)"
-          
-      - name: Create 100GB test file (if needed)
-        run: |
-          # Create a large file to demonstrate storage capacity
-          # This creates a 10GB file - adjust as needed
-          $filePath = "C:\large-test-file.bin"
-          if (-not (Test-Path $filePath)) {
-              Write-Host "Creating 10GB test file..."
-              $fs = [System.IO.File]::Create($filePath)
-              $fs.SetLength(10GB)  # 10GB file
-              $fs.Close()
-              Write-Host "Test file created: $filePath"
-          }
-          
-      - name: Long-running process example
-        run: |
-          Write-Host "Starting long-running process..."
-          Write-Host "This can run for days if needed..."
-          
-          # Example: Continuous processing with checkpoints
-          $counter = 0
-          while ($true) {
-              $counter++
-              $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-              Write-Host "[$timestamp] Processing iteration $counter"
-              
-              # Your actual processing code here
-              # For example: data processing, ML training, simulations
-              
-              # Save progress periodically
-              if ($counter % 10 -eq 0) {
-                  Write-Host "Saving checkpoint..."
-                  # Save checkpoint logic here
-              }
-              
-              # Sleep to prevent CPU overload
-              Start-Sleep -Seconds 60
-              
-              # Optional: Add a condition to exit
-              # if ($counter -ge 10000) { break }
-          }
-          
-      - name: Clean up (optional - only runs if previous step fails/ends)
-        if: always()
-        run: |
-          Write-Host "Cleaning up..."
-          # Cleanup logic here
-          Remove-Item "C:\large-test-file.bin" -ErrorAction SilentlyContinue
+        # Install common Windows 10 tools
+        choco install -y git.install
+        choco install -y 7zip
+        choco install -y nodejs
+        choco install -y python
+        
+    - name: Build project
+      run: |
+        # Example build commands
+        echo "Building on Windows..."
+        dir
+        
+    - name: Run tests
+      run: |
+        echo "Running tests..."
+        # Add your test commands here
+        
+    - name: Artifact results
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-build
+        path: |
+          build/
+          test-results/
