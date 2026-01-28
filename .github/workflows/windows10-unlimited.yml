@@ -1,47 +1,71 @@
-name: Windows 10-like Workflow
+name: Windows Server Build
 on: 
-  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:  # Manual trigger
 
 jobs:
-  windows-build:
+  build:
     runs-on: windows-latest  # Windows Server 2022
-    
-    timeout-minutes: 360  # 6 hours max (GitHub limit)
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Setup environment
+    
+    - name: Show Windows Server Info
       run: |
-        # Display system info
-        systeminfo | findstr /C:"OS Name"
-        echo "Available disk space:"
-        Get-PSDrive C | Select-Object Used,Free
+        echo "=== Windows Server Information ==="
+        systeminfo | findstr /C:"OS Name" /C:"OS Version"
+        echo "CPU Cores: $env:NUMBER_OF_PROCESSORS"
+        echo "Architecture: $env:PROCESSOR_ARCHITECTURE"
         
-        # Install common Windows 10 tools
+    - name: Setup Environment
+      run: |
+        # Display disk info
+        Get-PSDrive C | Format-List Name, Used, Free, @{Name="Free(GB)";Expression={[math]::Round($_.Free/1GB,2)}}, @{Name="Total(GB)";Expression={[math]::Round(($_.Free+$_.Used)/1GB,2)}}
+        
+        # Check available tools
+        dotnet --version || echo "No .NET"
+        python --version || echo "No Python"
+        node --version || echo "No Node.js"
+        
+    - name: Install Chocolatey Packages
+      run: |
+        # Install package manager if needed
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        
+        # Install common tools
         choco install -y git.install
         choco install -y 7zip
-        choco install -y nodejs
-        choco install -y python
+        choco install -y vscode
         
-    - name: Build project
+    - name: Build .NET Project (Example)
       run: |
-        # Example build commands
-        echo "Building on Windows..."
-        dir
+        # Create a simple .NET project if none exists
+        if (Test-Path "*.csproj" -PathType Leaf) {
+            dotnet restore
+            dotnet build --configuration Release
+            dotnet test
+        } else {
+            echo "No .NET project found, skipping build"
+        }
         
-    - name: Run tests
+    - name: Create Artifacts
       run: |
-        echo "Running tests..."
-        # Add your test commands here
+        # Create some output
+        mkdir -Force dist
+        echo "Build completed on Windows Server" > dist/build-info.txt
+        date >> dist/build-info.txt
+        systeminfo | findstr /C:"OS Name" >> dist/build-info.txt
         
-    - name: Artifact results
+    - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: windows-build
+        name: windows-server-build
         path: |
-          build/
-          test-results/
+          dist/
+          bin/Release/
